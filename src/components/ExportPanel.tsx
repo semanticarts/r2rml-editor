@@ -11,20 +11,22 @@ import {
 import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useMappingStore } from '../store/useMappingStore';
+import { useOntologyStore } from '../store/useOntologyStore';
 import { serializeMapping } from '../utils/r2rmlSerializer';
 
 const ExportPanel: React.FC = () => {
   const mappingDoc = useMappingStore((s) => s.mappingDoc);
+  const allPrefixes = useOntologyStore((s) => s.allPrefixes);
   const [snackMessage, setSnackMessage] = useState('');
 
   const turtleOutput = useMemo(() => {
     if (mappingDoc.triplesMaps.length === 0) return '';
     try {
-      return serializeMapping(mappingDoc);
+      return serializeMapping(mappingDoc, allPrefixes);
     } catch (e) {
       return `# Error serializing mapping: ${e instanceof Error ? e.message : String(e)}`;
     }
-  }, [mappingDoc]);
+  }, [mappingDoc, allPrefixes]);
 
   const handleDownload = () => {
     const blob = new Blob([turtleOutput], { type: 'text/turtle' });

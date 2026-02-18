@@ -11,12 +11,13 @@ const PreviewPanel: React.FC = () => {
   const previewRowCount = useCsvStore((s) => s.previewRowCount);
   const setPreviewRowCount = useCsvStore((s) => s.setPreviewRowCount);
   const allPrefixes = useOntologyStore((s) => s.allPrefixes);
+  const treatEmptyAsNull = useCsvStore((s) => s.treatEmptyAsNull);
 
   const previewText = useMemo(() => {
     if (!csvData || mappingDoc.triplesMaps.length === 0) return '';
     const rows = csvData.rows.slice(0, previewRowCount);
-    return generatePreview(mappingDoc, rows, allPrefixes);
-  }, [mappingDoc, csvData, previewRowCount, allPrefixes]);
+    return generatePreview(mappingDoc, rows, allPrefixes, treatEmptyAsNull);
+  }, [mappingDoc, csvData, previewRowCount, allPrefixes, treatEmptyAsNull]);
 
   return (
     <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>

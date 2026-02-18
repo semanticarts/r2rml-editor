@@ -5,9 +5,42 @@ import { RR, RDF } from './constants';
 const rr = $rdf.Namespace(RR);
 const rdf = $rdf.Namespace(RDF);
 
-export function serializeMapping(doc: MappingDocument): string {
+/**
+ * Expand a prefixed template/IRI like "ex:Person/{id}" to its full form
+ * using the given prefix map.
+ */
+function expandPrefixed(value: string, prefixes: Record<string, string>): string {
+  // Empty prefix — :rest
+  if (value.startsWith(':')) {
+    const ns = prefixes[''];
+    if (ns) return ns + value.slice(1);
+  }
+  // Named prefix — prefix:rest (rest may contain {col} placeholders)
+  const match = value.match(/^([a-zA-Z_][\w.-]*):(.+)$/);
+  if (match) {
+    const [, prefix, rest] = match;
+    const ns = prefixes[prefix];
+    if (ns) return ns + rest;
+  }
+  return value;
+}
+
+export function serializeMapping(
+  doc: MappingDocument,
+  extraPrefixes?: Record<string, string>
+): string {
   const store = $rdf.graph();
   const baseURI = doc.baseIRI || 'http://example.com/mapping/';
+
+  // Merge all known prefixes for expansion and output
+  const allPrefixes: Record<string, string> = {
+    ...extraPrefixes,
+    ...doc.prefixes,
+  };
+  // Add base IRI as empty prefix
+  if (doc.baseIRI && !allPrefixes['']) {
+    allPrefixes[''] = doc.baseIRI;
+  }
 
   for (const tm of doc.triplesMaps) {
     const tmNode = $rdf.sym(baseURI + '#' + tm.id);
@@ -19,10 +52,10 @@ export function serializeMapping(doc: MappingDocument): string {
     store.add(tmNode, rr('logicalTable'), ltNode);
     store.add(ltNode, rr('tableName'), $rdf.lit(tm.logicalTableName));
 
-    // Subject map
+    // Subject map — expand prefixed template
     const smNode = $rdf.blankNode();
     store.add(tmNode, rr('subjectMap'), smNode);
-    store.add(smNode, rr('template'), $rdf.lit(tm.subjectMap.template));
+    store.add(smNode, rr('template'), $rdf.lit(expandPrefixed(tm.subjectMap.template, allPrefixes)));
     if (tm.subjectMap.termType === 'BlankNode') {
       store.add(smNode, rr('termType'), rr('BlankNode'));
     }
@@ -56,7 +89,7 @@ export function serializeMapping(doc: MappingDocument): string {
           }
           break;
         case 'template':
-          store.add(omNode, rr('template'), $rdf.lit(pom.objectMap.value));
+          store.add(omNode, rr('template'), $rdf.lit(expandPrefixed(pom.objectMap.value, allPrefixes)));
           break;
       }
 
@@ -75,12 +108,25 @@ export function serializeMapping(doc: MappingDocument): string {
     }
   }
 
-  // Serialize to Turtle
-  const prefixes: Record<string, string> = { ...doc.prefixes };
-  if (!prefixes['rr']) prefixes['rr'] = RR;
+  // Register prefixes with rdflib so it uses our names (e.g. "rr:" not "r:")
+  for (const [prefix, ns] of Object.entries(allPrefixes)) {
+    if (prefix) {
+      (store as any).setPrefixForURI(prefix, ns);
+    }
+  }
+
+  // Ensure rr: prefix is always included
+  const outputPrefixes: Record<string, string> = { ...allPrefixes };
+  if (!outputPrefixes['rr']) outputPrefixes['rr'] = RR;
+  // Remove empty prefix from R2RML output (not standard in R2RML)
+  delete outputPrefixes[''];
 
   let turtle = '';
-  for (const [prefix, ns] of Object.entries(prefixes)) {
+  // Add @base declaration
+  if (doc.baseIRI) {
+    turtle += `@base <${doc.baseIRI}> .\n`;
+  }
+  for (const [prefix, ns] of Object.entries(outputPrefixes)) {
     turtle += `@prefix ${prefix}: <${ns}> .\n`;
   }
   turtle += '\n';
@@ -89,7 +135,7 @@ export function serializeMapping(doc: MappingDocument): string {
   const serialized = $rdf.serialize(null, store, baseURI, 'text/turtle') ?? '';
   // Strip any prefixes rdflib added (we already added ours) and append
   const lines = serialized.split('\n').filter(
-    (line) => !line.startsWith('@prefix') && line.trim() !== ''
+    (line) => !line.startsWith('@prefix') && !line.startsWith('@base') && line.trim() !== ''
   );
   turtle += lines.join('\n') + '\n';
 

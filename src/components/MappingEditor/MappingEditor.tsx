@@ -22,6 +22,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import { useMappingStore } from '../../store/useMappingStore';
 import { useOntologyStore } from '../../store/useOntologyStore';
+import { useCsvStore } from '../../store/useCsvStore';
 import SubjectConfig from './SubjectConfig';
 import MappingRow from './MappingRow';
 
@@ -32,6 +33,8 @@ const MappingEditor: React.FC = () => {
   const skosEnabled = useOntologyStore((s) => s.skosEnabled);
   const setRdfsEnabled = useOntologyStore((s) => s.setRdfsEnabled);
   const setSkosEnabled = useOntologyStore((s) => s.setSkosEnabled);
+  const treatEmptyAsNull = useCsvStore((s) => s.treatEmptyAsNull);
+  const setTreatEmptyAsNull = useCsvStore((s) => s.setTreatEmptyAsNull);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const toggleCollapse = (id: string) => {
@@ -52,8 +55,8 @@ const MappingEditor: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* Vocabulary toggles */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {/* Options bar */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>
           Vocabularies:
         </Typography>
@@ -71,6 +74,16 @@ const MappingEditor: React.FC = () => {
           variant={skosEnabled ? 'filled' : 'outlined'}
           onClick={() => setSkosEnabled(!skosEnabled)}
         />
+        <Box sx={{ mx: 1, borderLeft: 1, borderColor: 'divider', height: 24 }} />
+        <Tooltip title="When enabled, triples with empty or whitespace-only CSV values are omitted from the preview">
+          <Chip
+            label="Skip empty values"
+            size="small"
+            color={treatEmptyAsNull ? 'primary' : 'default'}
+            variant={treatEmptyAsNull ? 'filled' : 'outlined'}
+            onClick={() => setTreatEmptyAsNull(!treatEmptyAsNull)}
+          />
+        </Tooltip>
       </Box>
 
       {mappingDoc.triplesMaps.map((tm, idx) => {
@@ -143,10 +156,10 @@ const MappingEditor: React.FC = () => {
                         <TableCell sx={{ fontWeight: 'bold', width: 120 }}>
                           Source Type
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: 180 }}>
+                        <TableCell sx={{ fontWeight: 'bold', width: 360 }}>
                           Source Value
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', minWidth: 250 }}>
+                        <TableCell sx={{ fontWeight: 'bold', minWidth: 180 }}>
                           Predicate
                         </TableCell>
                         <TableCell sx={{ fontWeight: 'bold', width: 110 }}>

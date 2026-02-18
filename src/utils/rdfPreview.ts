@@ -1,9 +1,55 @@
 import type { MappingDocument } from '../types/mapping';
 
+/**
+ * Expand a prefixed template like "ex:Person/{id}" to "http://example.com/Person/{id}"
+ * using the known prefix map. Also handles the empty prefix ":localName".
+ */
+function expandPrefixedTemplate(
+  template: string,
+  prefixes: Record<string, string>
+): string {
+  // Empty prefix — :rest
+  if (template.startsWith(':')) {
+    const ns = prefixes[''];
+    if (ns) return ns + template.slice(1);
+  }
+  // Named prefix — prefix:rest
+  const match = template.match(/^([a-zA-Z_][\w.-]*):(.+)$/);
+  if (match) {
+    const [, prefix, rest] = match;
+    const ns = prefixes[prefix];
+    if (ns) return ns + rest;
+  }
+  return template;
+}
+
 function applyTemplate(template: string, row: Record<string, string>): string {
   return template.replace(/\{([^}]+)\}/g, (_, col) => {
     return row[col] ?? `{${col}}`;
   });
+}
+
+/**
+ * Returns true if any column referenced in the template has an
+ * empty or whitespace-only value in the given row.
+ */
+function templateHasNull(
+  template: string,
+  row: Record<string, string>
+): boolean {
+  let hasNull = false;
+  template.replace(/\{([^}]+)\}/g, (_, col) => {
+    const val = row[col];
+    if (val === undefined || val === null || val.trim() === '') {
+      hasNull = true;
+    }
+    return '';
+  });
+  return hasNull;
+}
+
+function isNullValue(value: string | undefined | null): boolean {
+  return value === undefined || value === null || value.trim() === '';
 }
 
 function escapeLiteral(value: string): string {
@@ -22,19 +68,25 @@ function resolveObject(
   datatype: string | null,
   language: string | null,
   row: Record<string, string>,
-  prefixMap: Map<string, string>
-): string {
+  prefixMap: Map<string, string>,
+  allPrefixes: Record<string, string>,
+  treatEmptyAsNull: boolean
+): string | null {
   let raw = '';
   switch (type) {
     case 'column':
+      if (treatEmptyAsNull && isNullValue(row[value])) return null;
       raw = row[value] ?? '';
       break;
     case 'constant':
       raw = value;
       break;
-    case 'template':
-      raw = applyTemplate(value, row);
+    case 'template': {
+      const expanded = expandPrefixedTemplate(value, allPrefixes);
+      if (treatEmptyAsNull && templateHasNull(expanded, row)) return null;
+      raw = applyTemplate(expanded, row);
       break;
+    }
   }
 
   if (termType === 'IRI') {
@@ -71,12 +123,19 @@ function toPrefixed(iri: string, prefixMap: Map<string, string>): string {
 export function generatePreview(
   doc: MappingDocument,
   rows: Record<string, string>[],
-  extraPrefixes?: Record<string, string>
+  extraPrefixes?: Record<string, string>,
+  treatEmptyAsNull?: boolean
 ): string {
   const lines: string[] = [];
+  const nullMode = treatEmptyAsNull ?? false;
 
   // Merge doc prefixes with extra (ontology) prefixes; doc takes priority
   const allPrefixes: Record<string, string> = { ...extraPrefixes, ...doc.prefixes };
+
+  // Add base IRI as the empty prefix ':'
+  if (doc.baseIRI && !allPrefixes['']) {
+    allPrefixes[''] = doc.baseIRI;
+  }
 
   // Build reverse prefix map: namespace -> prefix
   const prefixMap = new Map<string, string>();
@@ -92,7 +151,12 @@ export function generatePreview(
 
   for (const tm of doc.triplesMaps) {
     for (const row of rows) {
-      const subjectIri = applyTemplate(tm.subjectMap.template, row);
+      const expandedTemplate = expandPrefixedTemplate(tm.subjectMap.template, allPrefixes);
+
+      // Skip subject if it contains null column values
+      if (nullMode && templateHasNull(expandedTemplate, row)) continue;
+
+      const subjectIri = applyTemplate(expandedTemplate, row);
       if (!subjectIri) continue;
 
       const subjectStr = tm.subjectMap.termType === 'BlankNode'
@@ -120,8 +184,13 @@ export function generatePreview(
           pom.objectMap.datatype,
           pom.objectMap.language,
           row,
-          prefixMap
+          prefixMap,
+          allPrefixes,
+          nullMode
         );
+
+        // Skip this triple if object resolved to null
+        if (object === null) continue;
 
         pairs.push({
           predicate: toPrefixed(predicate, prefixMap),
