@@ -1,73 +1,76 @@
-# React + TypeScript + Vite
+# RML Editor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser-based visual editor for creating [R2RML](https://www.w3.org/TR/r2rml/) mappings from CSV data sources. Built with React, TypeScript, and Material UI.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **CSV Import** -- Load a CSV file and preview its contents with adjustable row counts
+- **Visual Mapping Editor** -- Define triples maps with subject templates, predicates, and object mappings using intuitive form controls
+- **Ontology Support** -- Import OWL/RDFS ontologies to populate class and property dropdowns with human-readable labels
+- **RDFS & SKOS Vocabularies** -- Toggle built-in RDFS and SKOS properties; auto-detected when importing existing mappings
+- **Namespace Management** -- Use QName prefixes in templates (e.g., `foaf:Person/{id}`) with automatic expansion on export
+- **RDF Preview** -- Live Turtle syntax preview that updates as you edit mappings
+- **Visual Graph Preview** -- Interactive force-directed diagram (D3) showing IRI nodes, literal nodes, and labeled predicate edges
+- **NULL Handling** -- Optionally skip triples where CSV values are empty or whitespace
+- **Import/Export** -- Import existing R2RML Turtle files (with QName compression and vocabulary auto-detection) or export your mapping as standard R2RML Turtle
 
-## React Compiler
+## Prerequisites
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- [Node.js](https://nodejs.org/) (v18 or later recommended)
+- npm (included with Node.js)
 
-## Expanding the ESLint configuration
+## Installation & Running
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Mac
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+```bash
+# Clone the repository
+git clone <repository-url>
+cd rml_editor
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+# Install dependencies
+npm install
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Start the development server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app will be available at `http://localhost:5173`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Windows
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```powershell
+# Clone the repository
+git clone <repository-url>
+cd rml_editor
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
 ```
+
+The app will be available at `http://localhost:5173`.
+
+## Building for Production
+
+```bash
+npm run build
+```
+
+The output will be in the `dist/` directory. Serve it with any static file server:
+
+```bash
+npm run preview
+```
+
+## Tech Stack
+
+- **React 19** + **TypeScript** -- UI framework
+- **Material UI 7** -- Component library
+- **Zustand** -- State management
+- **rdflib.js** -- RDF parsing and serialization
+- **D3.js** -- Force-directed graph visualization
+- **PapaParse** -- CSV parsing
+- **Vite** -- Build tool and dev server
