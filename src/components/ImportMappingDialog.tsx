@@ -15,6 +15,8 @@ import {
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { parseR2rmlTurtle } from '../utils/r2rmlParser';
 import { useMappingStore } from '../store/useMappingStore';
+import { useOntologyStore } from '../store/useOntologyStore';
+import { RDFS, SKOS } from '../utils/constants';
 
 interface ImportMappingDialogProps {
   open: boolean;
@@ -29,11 +31,29 @@ const ImportMappingDialog: React.FC<ImportMappingDialogProps> = ({
   const [turtleText, setTurtleText] = useState('');
   const [error, setError] = useState('');
   const { loadMappingDocument } = useMappingStore();
+  const setRdfsEnabled = useOntologyStore((s) => s.setRdfsEnabled);
+  const setSkosEnabled = useOntologyStore((s) => s.setSkosEnabled);
 
   const handleImport = (text: string) => {
     try {
       const doc = parseR2rmlTurtle(text);
       loadMappingDocument(doc);
+
+      // Auto-enable RDFS/SKOS vocabularies if the mapping references their terms
+      let hasRdfs = false;
+      let hasSkos = false;
+      for (const tm of doc.triplesMaps) {
+        if (tm.subjectMap.classIRI?.startsWith(RDFS)) hasRdfs = true;
+        if (tm.subjectMap.classIRI?.startsWith(SKOS)) hasSkos = true;
+        for (const pom of tm.predicateObjectMaps) {
+          const pred = pom.predicateMap.constant;
+          if (pred.startsWith(RDFS)) hasRdfs = true;
+          if (pred.startsWith(SKOS)) hasSkos = true;
+        }
+      }
+      if (hasRdfs) setRdfsEnabled(true);
+      if (hasSkos) setSkosEnabled(true);
+
       setError('');
       setTurtleText('');
       onClose();

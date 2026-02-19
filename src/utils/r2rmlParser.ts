@@ -30,7 +30,39 @@ function getNode(store: $rdf.IndexedFormula, subject: any, predicate: any): any 
   return null;
 }
 
-function parseObjectMap(store: $rdf.IndexedFormula, omNode: any): ObjectMap {
+/**
+ * Try to compress a template IRI to QName form.
+ * e.g. "http://xmlns.com/foaf/0.1/Person/{id}" → "foaf:Person/{id}"
+ * Only compresses the namespace prefix portion; {col} placeholders are preserved.
+ */
+function compressTemplate(
+  template: string,
+  prefixes: Record<string, string>
+): string {
+  let bestPrefix = '';
+  let bestNs = '';
+  for (const [prefix, ns] of Object.entries(prefixes)) {
+    if (template.startsWith(ns) && ns.length > bestNs.length) {
+      bestPrefix = prefix;
+      bestNs = ns;
+    }
+  }
+  if (bestNs) {
+    const rest = template.slice(bestNs.length);
+    // Only compress if rest doesn't contain unescaped / or # (outside of {})
+    const withoutPlaceholders = rest.replace(/\{[^}]*\}/g, '');
+    if (!withoutPlaceholders.includes('/') && !withoutPlaceholders.includes('#')) {
+      return `${bestPrefix}:${rest}`;
+    }
+  }
+  return template;
+}
+
+function parseObjectMap(
+  store: $rdf.IndexedFormula,
+  omNode: any,
+  prefixes: Record<string, string>
+): ObjectMap {
   const column = getLitValue(store, omNode, rr('column'));
   const constant = getNode(store, omNode, rr('constant'));
   const template = getLitValue(store, omNode, rr('template'));
@@ -46,7 +78,7 @@ function parseObjectMap(store: $rdf.IndexedFormula, omNode: any): ObjectMap {
     value = column;
   } else if (template) {
     type = 'template';
-    value = template;
+    value = compressTemplate(template, prefixes);
   } else if (constant) {
     type = 'constant';
     value = constant.value;
@@ -80,6 +112,28 @@ export function parseR2rmlTurtle(turtleStr: string, baseURI?: string): MappingDo
     throw new Error('Failed to parse Turtle: ' + (e instanceof Error ? e.message : String(e)));
   }
 
+  // Extract prefixes from the parsed Turtle
+  const parsedPrefixes: Record<string, string> = {};
+  const namespaces = (store as any).namespaces;
+  if (namespaces && typeof namespaces === 'object') {
+    for (const [prefix, ns] of Object.entries(namespaces)) {
+      if (prefix && typeof ns === 'string') {
+        parsedPrefixes[prefix] = ns;
+      }
+    }
+  }
+
+  // Merge: parsed prefixes override defaults for display
+  const allPrefixes: Record<string, string> = { ...DEFAULT_PREFIXES, ...parsedPrefixes };
+
+  // Detect base IRI from Turtle — check if any @base was parsed
+  // rdflib stores base in the fetcher/doc, but we can extract from the prefix ''
+  let detectedBase = base;
+  if (parsedPrefixes[''] && parsedPrefixes['']) {
+    detectedBase = parsedPrefixes[''];
+    delete allPrefixes[''];
+  }
+
   const triplesMaps: TriplesMap[] = [];
 
   const tmStatements = store.statementsMatching(undefined, rdfNs('type') as any, rr('TriplesMap') as any);
@@ -110,7 +164,8 @@ export function parseR2rmlTurtle(turtleStr: string, baseURI?: string): MappingDo
     };
 
     if (smNode) {
-      subjectMap.template = getLitValue(store, smNode, rr('template')) || '';
+      const rawTemplate = getLitValue(store, smNode, rr('template')) || '';
+      subjectMap.template = compressTemplate(rawTemplate, allPrefixes);
       const classNode = getNode(store, smNode, rr('class'));
       if (classNode) {
         subjectMap.classIRI = classNode.value;
@@ -140,7 +195,7 @@ export function parseR2rmlTurtle(turtleStr: string, baseURI?: string): MappingDo
       };
 
       if (omNode) {
-        objectMap = parseObjectMap(store, omNode);
+        objectMap = parseObjectMap(store, omNode, allPrefixes);
       }
 
       predicateObjectMaps.push({
@@ -159,8 +214,8 @@ export function parseR2rmlTurtle(turtleStr: string, baseURI?: string): MappingDo
   }
 
   return {
-    baseIRI: base,
-    prefixes: { ...DEFAULT_PREFIXES },
+    baseIRI: detectedBase,
+    prefixes: allPrefixes,
     triplesMaps,
   };
 }

@@ -4,7 +4,7 @@ import type { MappingDocument } from '../types/mapping';
  * Expand a prefixed template like "ex:Person/{id}" to "http://example.com/Person/{id}"
  * using the known prefix map. Also handles the empty prefix ":localName".
  */
-function expandPrefixedTemplate(
+export function expandPrefixedTemplate(
   template: string,
   prefixes: Record<string, string>
 ): string {
@@ -23,7 +23,7 @@ function expandPrefixedTemplate(
   return template;
 }
 
-function applyTemplate(template: string, row: Record<string, string>): string {
+export function applyTemplate(template: string, row: Record<string, string>): string {
   return template.replace(/\{([^}]+)\}/g, (_, col) => {
     return row[col] ?? `{${col}}`;
   });
@@ -33,7 +33,7 @@ function applyTemplate(template: string, row: Record<string, string>): string {
  * Returns true if any column referenced in the template has an
  * empty or whitespace-only value in the given row.
  */
-function templateHasNull(
+export function templateHasNull(
   template: string,
   row: Record<string, string>
 ): boolean {
@@ -48,7 +48,7 @@ function templateHasNull(
   return hasNull;
 }
 
-function isNullValue(value: string | undefined | null): boolean {
+export function isNullValue(value: string | undefined | null): boolean {
   return value === undefined || value === null || value.trim() === '';
 }
 
@@ -120,6 +120,32 @@ function toPrefixed(iri: string, prefixMap: Map<string, string>): string {
   return `<${iri}>`;
 }
 
+/**
+ * Merge doc prefixes with extra prefixes and build a reverse map (ns → prefix).
+ * Also adds the base IRI as the empty prefix ':' when available.
+ */
+export function buildPrefixMaps(
+  doc: MappingDocument,
+  extraPrefixes?: Record<string, string>
+): { allPrefixes: Record<string, string>; prefixMap: Map<string, string> } {
+  const allPrefixes: Record<string, string> = { ...extraPrefixes, ...doc.prefixes };
+  if (doc.baseIRI && !allPrefixes['']) {
+    allPrefixes[''] = doc.baseIRI;
+  }
+  const prefixMap = new Map<string, string>();
+  for (const [prefix, ns] of Object.entries(allPrefixes)) {
+    prefixMap.set(ns, prefix);
+  }
+  return { allPrefixes, prefixMap };
+}
+
+/**
+ * Compress a full IRI to a prefixed form using the reverse prefix map.
+ */
+export function toPrefixedIRI(iri: string, prefixMap: Map<string, string>): string {
+  return toPrefixed(iri, prefixMap);
+}
+
 export function generatePreview(
   doc: MappingDocument,
   rows: Record<string, string>[],
@@ -129,19 +155,7 @@ export function generatePreview(
   const lines: string[] = [];
   const nullMode = treatEmptyAsNull ?? false;
 
-  // Merge doc prefixes with extra (ontology) prefixes; doc takes priority
-  const allPrefixes: Record<string, string> = { ...extraPrefixes, ...doc.prefixes };
-
-  // Add base IRI as the empty prefix ':'
-  if (doc.baseIRI && !allPrefixes['']) {
-    allPrefixes[''] = doc.baseIRI;
-  }
-
-  // Build reverse prefix map: namespace -> prefix
-  const prefixMap = new Map<string, string>();
-  for (const [prefix, ns] of Object.entries(allPrefixes)) {
-    prefixMap.set(ns, prefix);
-  }
+  const { allPrefixes, prefixMap } = buildPrefixMaps(doc, extraPrefixes);
 
   // Add prefix declarations
   for (const [prefix, ns] of Object.entries(allPrefixes)) {

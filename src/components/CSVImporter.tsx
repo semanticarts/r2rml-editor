@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Paper,
+  Slider,
   Table,
   TableBody,
   TableCell,
@@ -19,8 +20,11 @@ import { useCsvStore } from '../store/useCsvStore';
 import { useMappingStore } from '../store/useMappingStore';
 
 const CSVImporter: React.FC = () => {
-  const { csvData, previewRowCount, setCsvData, clearCsv } =
-    useCsvStore();
+  const csvData = useCsvStore((s) => s.csvData);
+  const dataSourcePreviewRows = useCsvStore((s) => s.dataSourcePreviewRows);
+  const setCsvData = useCsvStore((s) => s.setCsvData);
+  const setDataSourcePreviewRows = useCsvStore((s) => s.setDataSourcePreviewRows);
+  const clearCsv = useCsvStore((s) => s.clearCsv);
   const { addTriplesMap, resetMapping } = useMappingStore();
 
   const handleFileUpload = useCallback(
@@ -49,7 +53,7 @@ const CSVImporter: React.FC = () => {
   }, [clearCsv, resetMapping]);
 
   const displayRows = csvData
-    ? csvData.rows.slice(0, previewRowCount)
+    ? csvData.rows.slice(0, dataSourcePreviewRows)
     : [];
 
   return (
@@ -83,6 +87,20 @@ const CSVImporter: React.FC = () => {
 
       {csvData && (
         <>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>
+              Preview rows: {dataSourcePreviewRows}
+            </Typography>
+            <Slider
+              value={dataSourcePreviewRows}
+              onChange={(_, val) => setDataSourcePreviewRows(val as number)}
+              min={1}
+              max={Math.min(csvData.totalRowCount, 50)}
+              step={1}
+              size="small"
+              sx={{ maxWidth: 200 }}
+            />
+          </Box>
           <TableContainer sx={{ maxHeight: 300 }}>
             <Table size="small" stickyHeader>
               <TableHead>
