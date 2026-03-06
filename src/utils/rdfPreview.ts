@@ -163,6 +163,11 @@ export function generatePreview(
   }
   if (lines.length > 0) lines.push('');
 
+  // Collect all triples grouped by subject, deduplicating as we go
+  const subjectOrder: string[] = [];
+  const subjectPairs = new Map<string, PredicateObject[]>();
+  const seenTriples = new Set<string>();
+
   for (const tm of doc.triplesMaps) {
     for (const row of rows) {
       const expandedTemplate = expandPrefixedTemplate(tm.subjectMap.template, allPrefixes);
@@ -177,14 +182,23 @@ export function generatePreview(
         ? `_:${subjectIri.replace(/[^a-zA-Z0-9_]/g, '_')}`
         : toPrefixed(subjectIri, prefixMap);
 
-      // Collect all predicate-object pairs for this subject
-      const pairs: PredicateObject[] = [];
+      if (!subjectPairs.has(subjectStr)) {
+        subjectOrder.push(subjectStr);
+        subjectPairs.set(subjectStr, []);
+      }
+      const pairs = subjectPairs.get(subjectStr)!;
 
       if (tm.subjectMap.classIRI) {
-        pairs.push({
-          predicate: 'a',
-          object: toPrefixed(tm.subjectMap.classIRI, prefixMap),
-        });
+        const expandedClass = expandPrefixedTemplate(tm.subjectMap.classIRI, allPrefixes);
+        const classObj = toPrefixed(expandedClass, prefixMap);
+        const key = `${subjectStr} a ${classObj}`;
+        if (!seenTriples.has(key)) {
+          seenTriples.add(key);
+          pairs.push({
+            predicate: 'a',
+            object: classObj,
+          });
+        }
       }
 
       for (const pom of tm.predicateObjectMaps) {
@@ -206,22 +220,27 @@ export function generatePreview(
         // Skip this triple if object resolved to null
         if (object === null) continue;
 
-        pairs.push({
-          predicate: toPrefixed(predicate, prefixMap),
-          object,
-        });
+        const predStr = toPrefixed(predicate, prefixMap);
+        const key = `${subjectStr} ${predStr} ${object}`;
+        if (!seenTriples.has(key)) {
+          seenTriples.add(key);
+          pairs.push({ predicate: predStr, object });
+        }
       }
-
-      if (pairs.length === 0) continue;
-
-      // Render as Turtle with ; separators
-      lines.push(`${subjectStr}`);
-      for (let i = 0; i < pairs.length; i++) {
-        const sep = i < pairs.length - 1 ? ' ;' : ' .';
-        lines.push(`    ${pairs[i].predicate} ${pairs[i].object}${sep}`);
-      }
-      lines.push('');
     }
+  }
+
+  // Render grouped triples as Turtle
+  for (const subjectStr of subjectOrder) {
+    const pairs = subjectPairs.get(subjectStr)!;
+    if (pairs.length === 0) continue;
+
+    lines.push(`${subjectStr}`);
+    for (let i = 0; i < pairs.length; i++) {
+      const sep = i < pairs.length - 1 ? ' ;' : ' .';
+      lines.push(`    ${pairs[i].predicate} ${pairs[i].object}${sep}`);
+    }
+    lines.push('');
   }
 
   return lines.join('\n');

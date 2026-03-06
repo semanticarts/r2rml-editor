@@ -67,6 +67,7 @@ const SubjectConfig: React.FC<SubjectConfigProps> = ({
         <Autocomplete
           size="small"
           freeSolo
+          autoSelect
           options={allClasses}
           getOptionLabel={(option) => {
             if (typeof option === 'string') return option;

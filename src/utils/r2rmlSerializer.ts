@@ -60,7 +60,7 @@ export function serializeMapping(
       store.add(smNode, rr('termType'), rr('BlankNode'));
     }
     if (tm.subjectMap.classIRI) {
-      store.add(smNode, rr('class'), $rdf.sym(tm.subjectMap.classIRI));
+      store.add(smNode, rr('class'), $rdf.sym(expandPrefixed(tm.subjectMap.classIRI, allPrefixes)));
     }
 
     // Predicate-object maps

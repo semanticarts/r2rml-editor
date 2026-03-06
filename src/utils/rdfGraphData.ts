@@ -111,6 +111,7 @@ export function generateGraphData(
 
   const nodeMap = new Map<string, GraphNode>();
   const links: GraphLink[] = [];
+  const seenLinks = new Set<string>();
   let literalCounter = 0;
 
   function ensureIriNode(iri: string): string {
@@ -124,12 +125,19 @@ export function generateGraphData(
     return iri;
   }
 
-  function addLiteralNode(
+  // Reuse literal nodes for identical value+datatype+language combinations
+  const literalKeyMap = new Map<string, string>();
+
+  function ensureLiteralNode(
     value: string,
     datatype: string | null,
     language: string | null
   ): string {
+    const key = `${value}\0${datatype ?? ''}\0${language ?? ''}`;
+    const existing = literalKeyMap.get(key);
+    if (existing) return existing;
     const id = `__literal_${literalCounter++}`;
+    literalKeyMap.set(key, id);
     nodeMap.set(id, {
       id,
       label: trimLiteral(value),
@@ -137,6 +145,13 @@ export function generateGraphData(
       sublabel: datatypeSublabel(datatype, language, prefixMap),
     });
     return id;
+  }
+
+  function addLink(source: string, target: string, label: string) {
+    const key = `${source}\0${target}\0${label}`;
+    if (seenLinks.has(key)) return;
+    seenLinks.add(key);
+    links.push({ source, target, label });
   }
 
   for (const tm of doc.triplesMaps) {
@@ -151,10 +166,11 @@ export function generateGraphData(
 
       // rdf:type class
       if (tm.subjectMap.classIRI) {
-        const classId = ensureIriNode(tm.subjectMap.classIRI);
+        const expandedClass = expandPrefixedTemplate(tm.subjectMap.classIRI, allPrefixes);
+        const classId = ensureIriNode(expandedClass);
         const classNode = nodeMap.get(classId);
         if (classNode) classNode.isClass = true;
-        links.push({ source: subjectId, target: classId, label: 'is a' });
+        addLink(subjectId, classId, 'is a');
       }
 
       for (const pom of tm.predicateObjectMaps) {
@@ -174,14 +190,14 @@ export function generateGraphData(
 
         if (pom.objectMap.termType === 'IRI') {
           const objectId = ensureIriNode(raw);
-          links.push({ source: subjectId, target: objectId, label: predLabel });
+          addLink(subjectId, objectId, predLabel);
         } else {
-          const objectId = addLiteralNode(
+          const objectId = ensureLiteralNode(
             raw,
             pom.objectMap.datatype,
             pom.objectMap.language
           );
-          links.push({ source: subjectId, target: objectId, label: predLabel });
+          addLink(subjectId, objectId, predLabel);
         }
       }
     }
