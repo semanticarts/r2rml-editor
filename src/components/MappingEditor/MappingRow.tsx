@@ -16,6 +16,7 @@ import { useMappingStore } from '../../store/useMappingStore';
 import { useCsvStore } from '../../store/useCsvStore';
 import { useOntologyStore, formatTermLabel, toQName } from '../../store/useOntologyStore';
 import DatatypePicker from './DatatypePicker';
+import TemplateTextField from './TemplateTextField';
 
 interface MappingRowProps {
   triplesMapId: string;
@@ -79,22 +80,31 @@ const MappingRow: React.FC<MappingRowProps> = ({ triplesMapId, pom }) => {
               ))}
             </Select>
           </FormControl>
+        ) : pom.objectMap.type === 'template' ? (
+          <TemplateTextField
+            size="small"
+            fullWidth
+            label="Template"
+            value={pom.objectMap.value}
+            onChange={(v) =>
+              updatePOM({
+                objectMap: { ...pom.objectMap, value: v },
+              })
+            }
+            placeholder="http://example.com/{col}"
+          />
         ) : (
           <TextField
             size="small"
             fullWidth
-            label={pom.objectMap.type === 'template' ? 'Template' : 'Value'}
+            label="Value"
             value={pom.objectMap.value}
             onChange={(e) =>
               updatePOM({
                 objectMap: { ...pom.objectMap, value: e.target.value },
               })
             }
-            placeholder={
-              pom.objectMap.type === 'template'
-                ? 'http://example.com/{col}'
-                : 'constant value'
-            }
+            placeholder="constant value"
           />
         )}
       </TableCell>

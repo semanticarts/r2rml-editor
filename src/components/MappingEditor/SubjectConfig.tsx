@@ -10,9 +10,9 @@ import {
   Typography,
 } from '@mui/material';
 import { useMappingStore } from '../../store/useMappingStore';
-import { useCsvStore } from '../../store/useCsvStore';
 import { useOntologyStore, formatTermLabel, toQName } from '../../store/useOntologyStore';
 import type { SubjectMap } from '../../types/mapping';
+import TemplateTextField from './TemplateTextField';
 
 interface SubjectConfigProps {
   triplesMapId: string;
@@ -24,13 +24,8 @@ const SubjectConfig: React.FC<SubjectConfigProps> = ({
   subjectMap,
 }) => {
   const { setBaseIRI, updateSubjectMap, mappingDoc } = useMappingStore();
-  const csvData = useCsvStore((s) => s.csvData);
   const allClasses = useOntologyStore((s) => s.allClasses);
   const allPrefixes = useOntologyStore((s) => s.allPrefixes);
-
-  const columnPlaceholders = csvData
-    ? csvData.headers.map((h) => `{${h}}`)
-    : [];
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
@@ -48,26 +43,18 @@ const SubjectConfig: React.FC<SubjectConfigProps> = ({
           placeholder="http://example.com/resource/"
         />
 
-        <TextField
+        <TemplateTextField
           label="Subject Template"
           value={subjectMap.template}
-          onChange={(e) =>
-            updateSubjectMap(triplesMapId, { template: e.target.value })
-          }
+          onChange={(v) => updateSubjectMap(triplesMapId, { template: v })}
           size="small"
           sx={{ minWidth: 300, flex: 1 }}
           placeholder="http://example.com/resource/{id}"
-          helperText={
-            columnPlaceholders.length > 0
-              ? `Available columns: ${columnPlaceholders.join(', ')}`
-              : undefined
-          }
         />
 
         <Autocomplete
           size="small"
           freeSolo
-          autoSelect
           options={allClasses}
           getOptionLabel={(option) => {
             if (typeof option === 'string') return option;
@@ -103,6 +90,13 @@ const SubjectConfig: React.FC<SubjectConfigProps> = ({
               updateSubjectMap(triplesMapId, { classIRI: newValue });
             } else {
               updateSubjectMap(triplesMapId, { classIRI: newValue.iri });
+            }
+          }}
+          onInputChange={(_, inputValue, reason) => {
+            if (reason === 'input') {
+              updateSubjectMap(triplesMapId, {
+                classIRI: inputValue || null,
+              });
             }
           }}
           renderInput={(params) => (
