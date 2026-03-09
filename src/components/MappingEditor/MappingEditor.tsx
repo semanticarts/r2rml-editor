@@ -21,14 +21,33 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import { useMappingStore } from '../../store/useMappingStore';
-import { useOntologyStore } from '../../store/useOntologyStore';
+import { useOntologyStore, toQName } from '../../store/useOntologyStore';
 import { useCsvStore } from '../../store/useCsvStore';
+import { buildPrefixMaps } from '../../utils/rdfPreview';
 import SubjectConfig from './SubjectConfig';
 import MappingRow from './MappingRow';
+
+/** Compact a template IRI using the prefix map, preserving {col} placeholders. */
+function compactTemplate(template: string, prefixMap: Map<string, string>): string {
+  let bestPrefix = '';
+  let bestNs = '';
+  for (const [ns, prefix] of prefixMap) {
+    if (template.startsWith(ns) && ns.length > bestNs.length) {
+      bestPrefix = prefix;
+      bestNs = ns;
+    }
+  }
+  if (bestNs) {
+    return `${bestPrefix}:${template.slice(bestNs.length)}`;
+  }
+  return template;
+}
 
 const MappingEditor: React.FC = () => {
   const { mappingDoc, addPredicateObjectMap, addEmptyTriplesMap, removeTriplesMap } =
     useMappingStore();
+  const allPrefixes = useOntologyStore((s) => s.allPrefixes);
+  const allClasses = useOntologyStore((s) => s.allClasses);
   const rdfsEnabled = useOntologyStore((s) => s.rdfsEnabled);
   const skosEnabled = useOntologyStore((s) => s.skosEnabled);
   const setRdfsEnabled = useOntologyStore((s) => s.setRdfsEnabled);
@@ -52,6 +71,7 @@ const MappingEditor: React.FC = () => {
   }
 
   const canRemove = mappingDoc.triplesMaps.length > 1;
+  const { prefixMap } = buildPrefixMaps(mappingDoc, allPrefixes);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -108,18 +128,28 @@ const MappingEditor: React.FC = () => {
               <IconButton size="small" sx={{ mr: 1 }}>
                 {isCollapsed ? <ExpandMoreIcon /> : <ExpandLessIcon />}
               </IconButton>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', flex: 1 }}>
-                Subject Mapping {idx + 1}
-                {tm.subjectMap.classIRI && (
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ ml: 1 }}
-                  >
-                    ({tm.subjectMap.classIRI.split(/[#/]/).pop()})
-                  </Typography>
-                )}
+              <Typography
+                variant="subtitle1"
+                sx={{ fontWeight: 'bold', flex: 1, fontFamily: 'monospace' }}
+                noWrap
+              >
+                {compactTemplate(tm.subjectMap.template, prefixMap) || `Subject Mapping ${idx + 1}`}
+                {tm.subjectMap.classIRI && (() => {
+                  const cls = allClasses.find((c) => c.iri === tm.subjectMap.classIRI);
+                  const label = cls?.prefLabel || cls?.label
+                    || toQName(tm.subjectMap.classIRI!, allPrefixes)
+                    || tm.subjectMap.classIRI;
+                  return (
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ ml: 1, fontFamily: 'inherit' }}
+                    >
+                      a {label}
+                    </Typography>
+                  );
+                })()}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
                 {tm.predicateObjectMaps.length} mapping{tm.predicateObjectMaps.length !== 1 ? 's' : ''}
